@@ -1,0 +1,55 @@
+services:
+  superlink:
+    build:
+      context: .
+    image: for-fl:latest
+    command:
+      - flower-superlink
+      - --insecure
+      - --database
+      - state/state.db
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    gpus: all
+    volumes:
+      - superlink-state:/app/state
+      - hf-cache:/root/.cache/huggingface
+      - ${GLD_HOST_DIR:-./data/gld}:/data/gld:ro
+    restart: unless-stopped
+
+  submit-run:
+    image: for-fl:latest
+    profiles:
+      - run
+    depends_on:
+      - superlink
+    command:
+      - /bin/bash
+      - -lc
+      - >
+        flwr run . docker-deployment --stream
+        --run-config
+        "num-server-rounds=${NUM_SERVER_ROUNDS:-20}
+        fraction-train=${FRACTION_TRAIN:-0.2}
+        fraction-evaluate=${FRACTION_EVALUATE:-0.1}
+        min-train-nodes=${MIN_TRAIN_NODES:-5}
+        min-evaluate-nodes=${MIN_EVALUATE_NODES:-5}
+        min-available-nodes=${MIN_AVAILABLE_NODES:-10}
+        batch-size=${BATCH_SIZE:-8}
+        local-epochs=${LOCAL_EPOCHS:-1}
+        image-size=${IMAGE_SIZE:-96}
+        include-cifar100=${INCLUDE_CIFAR100:-true}
+        include-landmarks=${INCLUDE_LANDMARKS:-false}
+        landmark-num-classes=${LANDMARK_NUM_CLASSES:-10000}
+        gld-root=${GLD_ROOT:-/data/gld/train}
+        gld-train-csv=${GLD_TRAIN_CSV:-/data/gld/train.csv}
+        gld-verify-files=${GLD_VERIFY_FILES:-false}
+        val-ratio=${VAL_RATIO:-0.2}
+        learning-rate=${LEARNING_RATE:-0.01}
+        grad-noise-std=${GRAD_NOISE_STD:-0.001}
+        grad-clip-norm=${GRAD_CLIP_NORM:-1.0}"
+
+volumes:
+  superlink-state:
+  hf-cache:

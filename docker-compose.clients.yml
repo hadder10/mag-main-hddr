@@ -1,0 +1,111 @@
+x-supernode-common: &supernode-common
+  build:
+    context: .
+  image: for-fl:latest
+  restart: unless-stopped
+  volumes:
+    - hf-cache:/root/.cache/huggingface
+    - ${GLD_HOST_DIR:-./data/gld}:/data/gld:ro
+  command:
+    - /bin/bash
+    - -lc
+    - >
+      flower-supernode
+      --insecure
+      --superlink "$${SERVER_IP}:9092"
+      --clientappio-api-address "0.0.0.0:9094"
+      --node-config "partition-id=$$((VM_INDEX * CLIENTS_PER_VM + CLIENT_OFFSET)) num-partitions=$${TOTAL_CLIENTS}"
+
+services:
+  supernode-0:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 0
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-1:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 1
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-2:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 2
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-3:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 3
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-4:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 4
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-5:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 5
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-6:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 6
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-7:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 7
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-8:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 8
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+  supernode-9:
+    <<: *supernode-common
+    environment:
+      SERVER_IP: ${SERVER_IP}
+      VM_INDEX: ${VM_INDEX:-0}
+      CLIENTS_PER_VM: ${CLIENTS_PER_VM:-10}
+      CLIENT_OFFSET: 9
+      TOTAL_CLIENTS: ${TOTAL_CLIENTS:-50}
+
+volumes:
+  hf-cache:
