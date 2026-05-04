@@ -16,6 +16,23 @@ from PIL import Image
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torchvision.transforms import Compose, Normalize, Resize, ToTensor
 
+try:
+    from .sec_ops import (
+        GradientProtectionConfig,
+        OpacusProtectionConfig,
+        apply_gradient_protection,
+        enable_opacus_protection,
+        normalize_privacy_backend,
+    )
+except ImportError:
+    from sec_ops import (
+        GradientProtectionConfig,
+        OpacusProtectionConfig,
+        apply_gradient_protection,
+        enable_opacus_protection,
+        normalize_privacy_backend,
+    )
+
 
 CIFAR100_NUM_CLASSES = 100
 DEFAULT_LANDMARK_NUM_CLASSES = 203_094
@@ -55,12 +72,12 @@ class DepthwiseSeparableConv(nn.Module):
             bias=False,
         )
         self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
-        self.bn = nn.BatchNorm2d(out_channels)
+        self.norm = nn.GroupNorm(num_groups=min(8, out_channels), num_channels=out_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.depthwise(x)
         x = self.pointwise(x)
-        return F.silu(self.bn(x))
+        return F.silu(self.norm(x))
 
 
 class ResidualBlock(nn.Module):
@@ -89,7 +106,7 @@ class Net(nn.Module):
         self.num_classes = num_classes
         self.features = nn.Sequential(
             nn.Conv2d(3, width, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(width),
+            nn.GroupNorm(num_groups=min(8, width), num_channels=width),
             nn.SiLU(inplace=True),
             DepthwiseSeparableConv(width, width * 2, stride=2),
             ResidualBlock(width * 2),
@@ -398,43 +415,76 @@ def train(
     device: torch.device,
     grad_clip_norm: float | None = None,
     grad_noise_std: float = 0.0,
+    privacy_backend: str = "manual_gradient_protection",
+    opacus_noise_multiplier: float | None = None,
+    opacus_accountant: str = "prv",
+    opacus_delta: float = 1e-5,
+    opacus_secure_mode: bool = False,
+    opacus_poisson_sampling: bool = True,
+    opacus_grad_sample_mode: str = "hooks",
 ) -> float:
     """Train the model on a local federated client dataset."""
 
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
+    privacy_backend = normalize_privacy_backend(privacy_backend)
+    gradient_protection = GradientProtectionConfig(
+        clip_norm=grad_clip_norm,
+        noise_std=grad_noise_std,
+    )
+    opacus_state = None
+    if privacy_backend == "opacus":
+        opacus_state = enable_opacus_protection(
+            net,
+            optimizer,
+            trainloader,
+            OpacusProtectionConfig(
+                noise_multiplier=max(
+                    grad_noise_std if opacus_noise_multiplier is None else opacus_noise_multiplier,
+                    0.0,
+                ),
+                max_grad_norm=grad_clip_norm or 1.0,
+                accountant=opacus_accountant,
+                secure_mode=opacus_secure_mode,
+                poisson_sampling=opacus_poisson_sampling,
+                grad_sample_mode=opacus_grad_sample_mode,
+                delta=opacus_delta,
+            ),
+        )
+        net = opacus_state.model
+        optimizer = opacus_state.optimizer
+        trainloader = opacus_state.trainloader
+
     net.train()
     running_loss = 0.0
-    for _ in range(epochs):
-        for batch in trainloader:
-            images = batch["img"].to(device, non_blocking=True)
-            labels = batch["label"].to(device, non_blocking=True)
-            optimizer.zero_grad(set_to_none=True)
-            loss = criterion(net(images), labels)
-            loss.backward()
+    try:
+        for _ in range(epochs):
+            for batch in trainloader:
+                images = batch["img"].to(device, non_blocking=True)
+                labels = batch["label"].to(device, non_blocking=True)
+                optimizer.zero_grad(set_to_none=True)
+                loss = criterion(net(images), labels)
+                loss.backward()
 
-            if grad_clip_norm is not None:
-                torch.nn.utils.clip_grad_norm_(net.parameters(), grad_clip_norm)
+                if privacy_backend == "manual_gradient_protection":
+                    # Подключение защиты градиентов: клиппинг ограничивает вклад
+                    # локального обновления, а гауссов шум маскирует точный градиент
+                    # клиента перед федеративной агрегацией на сервере.
+                    apply_gradient_protection(net, gradient_protection)
+                # При backend='none' градиенты используются без дополнительного
+                # клиппинга и без добавления шума.
+                # При backend='opacus' клиппинг per-sample gradients, добавление
+                # шума и accounting выполняются внутри DPOptimizer на optimizer.step().
 
-            # Подключение "шифрования" градиентов через шум:
-            # перед отправкой обновлений в федеративный контур клиент может добавлять
-            # гауссов шум к локальным градиентам. Это не заменяет криптографическое
-            # secure aggregation, но маскирует вклад отдельного примера/клиента и
-            # обычно используется как DP-SGD-подобный слой приватности.
-            if grad_noise_std > 0:
-                for parameter in net.parameters():
-                    if parameter.grad is not None:
-                        noise = torch.normal(
-                            mean=0.0,
-                            std=grad_noise_std,
-                            size=parameter.grad.shape,
-                            device=parameter.grad.device,
-                        )
-                        parameter.grad.add_(noise)
-
-            optimizer.step()
-            running_loss += loss.item()
+                optimizer.step()
+                running_loss += loss.item()
+    finally:
+        if opacus_state is not None:
+            epsilon = opacus_state.get_epsilon(opacus_delta)
+            if epsilon is not None:
+                print(f"Opacus privacy spent: epsilon={epsilon:.4f}, delta={opacus_delta}")
+            opacus_state.cleanup()
     return running_loss / max(1, epochs * len(trainloader))
 
 

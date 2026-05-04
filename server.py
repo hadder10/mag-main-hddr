@@ -14,6 +14,13 @@ except ImportError:
 app = ServerApp()
 
 
+def _bool_config(config, key: str, default: bool) -> bool:
+    value = config.get(key, default)
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the central Flower server."""
@@ -45,8 +52,30 @@ def main(grid: Grid, context: Context) -> None:
         train_config=ConfigRecord(
             {
                 "lr": lr,
+                "privacy-backend": context.run_config.get(
+                    "privacy-backend",
+                    "manual_gradient_protection",
+                ),
                 "grad-noise-std": float(context.run_config.get("grad-noise-std", 0.0)),
                 "grad-clip-norm": float(context.run_config.get("grad-clip-norm", 1.0)),
+                "opacus-noise-multiplier": float(
+                    context.run_config.get(
+                        "opacus-noise-multiplier",
+                        context.run_config.get("grad-noise-std", 0.0),
+                    )
+                ),
+                "opacus-accountant": context.run_config.get("opacus-accountant", "prv"),
+                "opacus-delta": float(context.run_config.get("opacus-delta", 1e-5)),
+                "opacus-secure-mode": _bool_config(
+                    context.run_config, "opacus-secure-mode", False
+                ),
+                "opacus-poisson-sampling": _bool_config(
+                    context.run_config, "opacus-poisson-sampling", True
+                ),
+                "opacus-grad-sample-mode": context.run_config.get(
+                    "opacus-grad-sample-mode",
+                    "hooks",
+                ),
             }
         ),
         num_rounds=num_rounds,
