@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "for-fl"
+version = "0.1.0"
+description = "Flower federated learning app for CIFAR-100 and Google Landmarks v2"
+requires-python = ">=3.10"
+dependencies = [
+    "flwr[simulation]>=1.19.0",
+    "torch",
+    "torchvision",
+    "datasets",
+    "opacus",
+    "pillow",
+]
+
+[tool.setuptools.packages.find]
+include = ["for_fl*"]
+
+[tool.flwr.app.components]
+serverapp = "for_fl.server:app"
+clientapp = "for_fl.client:app"
+
+[tool.flwr.app.config]
+num-server-rounds = 3
+fraction-train = 0.2
+fraction-evaluate = 0.1
+min-train-nodes = 5
+min-evaluate-nodes = 5
+min-available-nodes = 10
+learning-rate = 0.01
+local-epochs = 1
+batch-size = 8
+image-size = 96
+include-cifar100 = true
+include-landmarks = false
+landmark-num-classes = 10000
+grad-noise-std = 0.001
+grad-clip-norm = 1.0
+privacy-backend = "manual_gradient_protection"
+opacus-noise-multiplier = 1.0
+opacus-accountant = "prv"
+opacus-delta = 0.00001
+opacus-secure-mode = false
+opacus-poisson-sampling = true
+opacus-grad-sample-mode = "hooks"
+metrics-dir = "artifacts/metrics"
+updates-dir = "artifacts/updates"
+model-dir = "artifacts/models"
+save-client-updates = true
+val-ratio = 0.2
+gld-verify-files = false
+
+[tool.flwr.federations.local-deployment]
+address = "127.0.0.1:9093"
+insecure = true
+
+[tool.flwr.federations.docker-deployment]
+address = "superlink:9093"
+insecure = true

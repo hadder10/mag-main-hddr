@@ -1,13 +1,18 @@
 """Flower server app for CIFAR-100 + Google Landmarks v2."""
 
+from pathlib import Path
+
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
-from flwr.serverapp.strategy import FedAvg
 
 try:
+    from .audit_strategy import AuditedFedAvg
+    from .metrics import save_result_metrics
     from .main_task import Net, load_centralized_dataset, settings_from_config, test
 except ImportError:
+    from audit_strategy import AuditedFedAvg
+    from metrics import save_result_metrics
     from main_task import Net, load_centralized_dataset, settings_from_config, test
 
 
@@ -34,12 +39,15 @@ def main(grid: Grid, context: Context) -> None:
     global_model = Net(num_classes=settings.num_classes)
     arrays = ArrayRecord(global_model.state_dict())
 
-    strategy = FedAvg(
+    strategy = AuditedFedAvg(
         fraction_train=fraction_train,
         fraction_evaluate=fraction_evaluate,
         min_train_nodes=int(context.run_config.get("min-train-nodes", 2)),
         min_evaluate_nodes=int(context.run_config.get("min-evaluate-nodes", 2)),
         min_available_nodes=int(context.run_config.get("min-available-nodes", 2)),
+        save_client_updates=_bool_config(context.run_config, "save-client-updates", True),
+        updates_dir=context.run_config.get("updates-dir", "artifacts/updates"),
+        run_config=context.run_config,
     )
 
     # grad-noise-std и grad-clip-norm передаются каждому клиенту.
@@ -86,7 +94,17 @@ def main(grid: Grid, context: Context) -> None:
 
     print("\nSaving final model to disk...")
     state_dict = result.arrays.to_torch_state_dict()
-    torch.save(state_dict, "final_model.pt")
+    model_dir = Path(context.run_config.get("model-dir", "artifacts/models"))
+    model_dir.mkdir(parents=True, exist_ok=True)
+    final_model_path = model_dir / "final_model.pt"
+    torch.save(state_dict, final_model_path)
+    print(f"Saved final model to {final_model_path}")
+    metrics_dir = save_result_metrics(
+        result,
+        context.run_config,
+        output_dir=context.run_config.get("metrics-dir", "artifacts/metrics"),
+    )
+    print(f"Saved metrics to {metrics_dir}")
 
 
 def global_evaluate(
