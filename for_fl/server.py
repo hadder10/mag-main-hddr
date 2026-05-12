@@ -1,5 +1,3 @@
-"""Flower server app for CIFAR-100 + Google Landmarks v2."""
-
 from pathlib import Path
 
 import torch
@@ -28,8 +26,6 @@ def _bool_config(config, key: str, default: bool) -> bool:
 
 @app.main()
 def main(grid: Grid, context: Context) -> None:
-    """Main entry point for the central Flower server."""
-
     fraction_train: float = context.run_config.get("fraction-train", 0.2)
     fraction_evaluate: float = context.run_config["fraction-evaluate"]
     num_rounds: int = context.run_config["num-server-rounds"]
@@ -50,10 +46,6 @@ def main(grid: Grid, context: Context) -> None:
         run_config=context.run_config,
     )
 
-    # grad-noise-std и grad-clip-norm передаются каждому клиенту.
-    # На клиентской стороне они включают DP-SGD-подобное добавление шума
-    # к градиентам перед локальным optimizer.step(), чтобы замаскировать
-    # индивидуальный вклад данных при последующей федеративной агрегации.
     result = strategy.start(
         grid=grid,
         initial_arrays=arrays,
@@ -121,6 +113,17 @@ def global_evaluate(
 
     settings = settings or settings_from_config(None)
     test_dataloader = load_centralized_dataset(settings=settings)
-    test_loss, test_acc = test(model, test_dataloader, device)
+    test_loss, test_acc, test_f1_macro, test_f1_weighted = test(
+        model,
+        test_dataloader,
+        device,
+    )
 
-    return MetricRecord({"accuracy": test_acc, "loss": test_loss})
+    return MetricRecord(
+        {
+            "accuracy": test_acc,
+            "loss": test_loss,
+            "f1_macro": test_f1_macro,
+            "f1_weighted": test_f1_weighted,
+        }
+    )

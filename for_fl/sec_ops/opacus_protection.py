@@ -12,8 +12,6 @@ from torch.utils.data import DataLoader
 
 @dataclass(frozen=True)
 class OpacusProtectionConfig:
-    """Configuration for Opacus PrivacyEngine."""
-
     noise_multiplier: float = 1.0
     max_grad_norm: float = 1.0
     accountant: str = "prv"
@@ -25,8 +23,6 @@ class OpacusProtectionConfig:
 
 @dataclass
 class OpacusProtectionState:
-    """Objects returned by Opacus after private training is enabled."""
-
     model: nn.Module
     optimizer: Optimizer
     trainloader: DataLoader
@@ -50,13 +46,6 @@ def enable_opacus_protection(
     trainloader: DataLoader,
     config: OpacusProtectionConfig,
 ) -> OpacusProtectionState:
-    """Wrap training objects with Opacus PrivacyEngine.
-
-    Opacus performs per-sample gradient computation, clipping, noise addition,
-    and privacy accounting. ``wrap_model=False`` keeps the original model object
-    intact, which is important for Flower because the client later serializes
-    the same model state dict back to the server.
-    """
 
     try:
         from opacus import PrivacyEngine

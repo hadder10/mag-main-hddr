@@ -1,5 +1,3 @@
-"""Gradient protection utilities for federated learning clients."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,8 +8,6 @@ import torch.nn as nn
 
 @dataclass(frozen=True)
 class GradientProtectionConfig:
-    """Configuration for clipping gradients and adding Gaussian noise."""
-
     clip_norm: float | None = 1.0
     noise_std: float = 0.0
 
@@ -24,15 +20,6 @@ def apply_gradient_protection(
     model: nn.Module,
     config: GradientProtectionConfig,
 ) -> float | None:
-    """Clip gradients and add Gaussian noise before the optimizer step.
-
-    In federated learning, this function is called on each client after
-    ``loss.backward()`` and before ``optimizer.step()``. Clipping bounds the
-    influence of one batch/client update, and Gaussian noise masks the exact
-    gradient signal before the resulting local weights are sent to the server.
-    This is a DP-SGD-style protection layer, not a replacement for secure
-    aggregation or cryptographic encryption.
-    """
 
     total_norm = None
     if config.clip_norm is not None:

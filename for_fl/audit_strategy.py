@@ -1,5 +1,3 @@
-"""FedAvg strategy variant that saves per-client updates for audits."""
-
 from __future__ import annotations
 
 import json
@@ -27,8 +25,6 @@ def _record_to_plain_dict(record: Any | None) -> dict[str, Any]:
 
 
 class AuditedFedAvg(FedAvg):
-    """FedAvg that stores global and client weights before aggregation."""
-
     def __init__(
         self,
         *args,

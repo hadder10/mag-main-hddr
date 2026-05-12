@@ -12,6 +12,7 @@ dependencies = [
     "torch",
     "torchvision",
     "datasets",
+    "matplotlib",
     "opacus",
     "pillow",
 ]

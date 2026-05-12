@@ -97,9 +97,6 @@ def train(msg: Message, context: Context):
         opacus_grad_sample_mode=train_config.get("opacus-grad-sample-mode", "hooks"),
     )
 
-    # Здесь в федеративный цикл возвращаются веса после локального шага.
-    # Если включен grad-noise-std, эти веса уже получены из зашумленных градиентов,
-    # что имитирует приватное "шифрование" вклада клиента перед агрегацией.
     model_record = ArrayRecord(model.state_dict())
     metrics = {
         "train_loss": train_loss,
@@ -125,11 +122,17 @@ def evaluate(msg: Message, context: Context):
     batch_size = context.run_config["batch-size"]
     _, valloader = load_data(partition_id, num_partitions, batch_size, settings)
 
-    eval_loss, eval_acc = test_fn(model, valloader, device)
+    eval_loss, eval_acc, eval_f1_macro, eval_f1_weighted = test_fn(
+        model,
+        valloader,
+        device,
+    )
 
     metrics = {
         "eval_loss": eval_loss,
         "eval_acc": eval_acc,
+        "eval_f1_macro": eval_f1_macro,
+        "eval_f1_weighted": eval_f1_weighted,
         "num-examples": len(valloader.dataset),
     }
     metric_record = MetricRecord(metrics)

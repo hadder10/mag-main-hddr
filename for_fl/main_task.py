@@ -1,5 +1,3 @@
-"""Flower / PyTorch task code for CIFAR-100 + Google Landmarks v2."""
-
 from __future__ import annotations
 
 import csv
@@ -42,11 +40,10 @@ DEFAULT_VAL_RATIO = 0.2
 
 @dataclass(frozen=True)
 class DataSettings:
-    """Shared settings used by the server and every federated client."""
-
     image_size: int = DEFAULT_IMAGE_SIZE
     num_classes: int = CIFAR100_NUM_CLASSES + DEFAULT_LANDMARK_NUM_CLASSES
     landmark_num_classes: int = DEFAULT_LANDMARK_NUM_CLASSES
+    landmark_label_offset: int = CIFAR100_NUM_CLASSES
     include_cifar100: bool = True
     include_landmarks: bool = False
     gld_root: str | None = None
@@ -58,8 +55,6 @@ class DataSettings:
 
 
 class DepthwiseSeparableConv(nn.Module):
-    """A compact CNN block that scales better than plain 5x5 convolutions."""
-
     def __init__(self, in_channels: int, out_channels: int, stride: int = 1):
         super().__init__()
         self.depthwise = nn.Conv2d(
@@ -81,8 +76,6 @@ class DepthwiseSeparableConv(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-    """Residual block for large mixed image datasets."""
-
     def __init__(self, channels: int):
         super().__init__()
         self.conv1 = DepthwiseSeparableConv(channels, channels)
@@ -93,8 +86,6 @@ class ResidualBlock(nn.Module):
 
 
 class Net(nn.Module):
-    """Scalable CNN for the combined CIFAR-100 + GLDv2 classification task."""
-
     def __init__(
         self,
         num_classes: int = CIFAR100_NUM_CLASSES + DEFAULT_LANDMARK_NUM_CLASSES,
@@ -132,19 +123,28 @@ class Net(nn.Module):
         return self.classifier(x)
 
 
-def settings_from_config(config: dict[str, Any] | None) -> DataSettings:
-    """Build data/model settings from Flower run config."""
+def _config_bool(config: dict[str, Any], key: str, default: bool) -> bool:
+    value = config.get(key, default)
+    if isinstance(value, str):
+        return value.lower().strip() in {"1", "true", "yes", "on"}
+    return bool(value)
 
+
+def settings_from_config(config: dict[str, Any] | None) -> DataSettings:
     config = config or {}
     gld_root = config.get("gld-root")
     gld_train_csv = config.get("gld-train-csv")
-    include_landmarks = bool(
-        config.get("include-landmarks", bool(gld_root and gld_train_csv))
+    include_cifar100 = _config_bool(config, "include-cifar100", True)
+    include_landmarks = _config_bool(
+        config,
+        "include-landmarks",
+        bool(gld_root and gld_train_csv),
     )
     landmark_num_classes = int(
         config.get("landmark-num-classes", DEFAULT_LANDMARK_NUM_CLASSES)
     )
-    default_num_classes = CIFAR100_NUM_CLASSES
+    landmark_label_offset = CIFAR100_NUM_CLASSES if include_cifar100 else 0
+    default_num_classes = CIFAR100_NUM_CLASSES if include_cifar100 else 0
     if include_landmarks:
         default_num_classes += landmark_num_classes
     num_classes = int(config.get("num-classes", default_num_classes))
@@ -152,13 +152,14 @@ def settings_from_config(config: dict[str, Any] | None) -> DataSettings:
         image_size=int(config.get("image-size", DEFAULT_IMAGE_SIZE)),
         num_classes=num_classes,
         landmark_num_classes=landmark_num_classes,
-        include_cifar100=bool(config.get("include-cifar100", True)),
+        landmark_label_offset=landmark_label_offset,
+        include_cifar100=include_cifar100,
         include_landmarks=include_landmarks,
         gld_root=gld_root,
         gld_train_csv=gld_train_csv,
         gld_val_csv=config.get("gld-val-csv"),
         gld_label_map_csv=config.get("gld-label-map-csv"),
-        gld_verify_files=bool(config.get("gld-verify-files", False)),
+        gld_verify_files=_config_bool(config, "gld-verify-files", False),
         val_ratio=float(config.get("val-ratio", DEFAULT_VAL_RATIO)),
     )
 
@@ -184,8 +185,6 @@ def _is_validation_sample(sample_id: str, val_ratio: float) -> bool:
 
 
 class Cifar100Dataset(Dataset):
-    """CIFAR-100 split with labels occupying class ids 0..99."""
-
     def __init__(self, split: str, image_size: int):
         from datasets import load_dataset
 
@@ -206,8 +205,6 @@ class Cifar100Dataset(Dataset):
 
 
 class PartitionedDataset(Dataset):
-    """Hash-partition any dataset into stable federated client shards."""
-
     def __init__(self, dataset: Dataset, partition_id: int, num_partitions: int):
         self.dataset = dataset
         self.indices = [
@@ -238,8 +235,6 @@ def _load_landmark_label_map(
     explicit_label_map_csv: Path | None,
     landmark_num_classes: int,
 ) -> dict[int, int]:
-    """Map sparse GLDv2 landmark ids into a compact class range after CIFAR-100."""
-
     if explicit_label_map_csv is not None and explicit_label_map_csv.exists():
         with explicit_label_map_csv.open(newline="") as handle:
             reader = csv.DictReader(handle)
@@ -261,8 +256,6 @@ def _load_landmark_label_map(
 
 
 class GoogleLandmarksV2Dataset(Dataset):
-    """Lazy local GLDv2 dataset backed by metadata CSV and extracted JPG files."""
-
     def __init__(
         self,
         root: str,
@@ -271,6 +264,7 @@ class GoogleLandmarksV2Dataset(Dataset):
         image_size: int,
         split: str,
         val_ratio: float,
+        label_offset: int = CIFAR100_NUM_CLASSES,
         partition_id: int | None = None,
         num_partitions: int | None = None,
         verify_files: bool = False,
@@ -299,7 +293,7 @@ class GoogleLandmarksV2Dataset(Dataset):
                     continue
                 if verify_files and not _gld_image_path(self.root, image_id).exists():
                     continue
-                label = CIFAR100_NUM_CLASSES + label_map[landmark_id]
+                label = label_offset + label_map[landmark_id]
                 self.samples.append((image_id, label))
 
     def __len__(self) -> int:
@@ -349,6 +343,7 @@ def _build_datasets(
                 image_size=settings.image_size,
                 split=split,
                 val_ratio=settings.val_ratio,
+                label_offset=settings.landmark_label_offset,
                 partition_id=partition_id,
                 num_partitions=num_partitions,
                 verify_files=settings.gld_verify_files,
@@ -366,8 +361,6 @@ def load_data(
     batch_size: int,
     settings: DataSettings | None = None,
 ):
-    """Load one federated client shard from CIFAR-100 and optional GLDv2."""
-
     settings = settings or DataSettings()
     train_dataset = ConcatDataset(
         _build_datasets(settings, partition_id, num_partitions, split="train")
@@ -381,12 +374,14 @@ def load_data(
         shuffle=True,
         num_workers=2,
         pin_memory=torch.cuda.is_available(),
+        persistent_workers=True,
     )
     testloader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         num_workers=2,
         pin_memory=torch.cuda.is_available(),
+        persistent_workers=True,
     )
     return trainloader, testloader
 
@@ -395,8 +390,6 @@ def load_centralized_dataset(
     batch_size: int = 128,
     settings: DataSettings | None = None,
 ):
-    """Load central validation data for the server-side global evaluation."""
-
     settings = settings or DataSettings()
     dataset = ConcatDataset(_build_datasets(settings, split="test"))
     return DataLoader(
@@ -404,6 +397,7 @@ def load_centralized_dataset(
         batch_size=batch_size,
         num_workers=2,
         pin_memory=torch.cuda.is_available(),
+        persistent_workers=True,
     )
 
 
@@ -423,8 +417,6 @@ def train(
     opacus_poisson_sampling: bool = True,
     opacus_grad_sample_mode: str = "hooks",
 ) -> float:
-    """Train the model on a local federated client dataset."""
-
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
@@ -468,14 +460,7 @@ def train(
                 loss.backward()
 
                 if privacy_backend == "manual_gradient_protection":
-                    # Подключение защиты градиентов: клиппинг ограничивает вклад
-                    # локального обновления, а гауссов шум маскирует точный градиент
-                    # клиента перед федеративной агрегацией на сервере.
                     apply_gradient_protection(net, gradient_protection)
-                # При backend='none' градиенты используются без дополнительного
-                # клиппинга и без добавления шума.
-                # При backend='opacus' клиппинг per-sample gradients, добавление
-                # шума и accounting выполняются внутри DPOptimizer на optimizer.step().
 
                 optimizer.step()
                 running_loss += loss.item()
@@ -488,20 +473,65 @@ def train(
     return running_loss / max(1, epochs * len(trainloader))
 
 
-def test(net: nn.Module, testloader: DataLoader, device: torch.device):
-    """Validate the model on local or centralized validation data."""
+def _classification_f1(
+    true_positive: torch.Tensor,
+    predicted_count: torch.Tensor,
+    target_count: torch.Tensor,
+) -> tuple[float, float]:
+    precision = true_positive / predicted_count.clamp_min(1)
+    recall = true_positive / target_count.clamp_min(1)
+    f1 = 2 * precision * recall / (precision + recall).clamp_min(1e-12)
+    observed = target_count > 0
+    if observed.any():
+        macro_f1 = float(f1[observed].mean().item())
+        weighted_f1 = float(
+            (f1[observed] * target_count[observed]).sum().item()
+            / target_count[observed].sum().clamp_min(1).item()
+        )
+    else:
+        macro_f1 = 0.0
+        weighted_f1 = 0.0
+    return macro_f1, weighted_f1
 
+
+def test(net: nn.Module, testloader: DataLoader, device: torch.device):
     net.to(device)
     net.eval()
     criterion = torch.nn.CrossEntropyLoss().to(device)
     correct, loss = 0, 0.0
+    num_classes = int(getattr(net, "num_classes", 0))
+    true_positive = torch.zeros(num_classes, dtype=torch.float64)
+    predicted_count = torch.zeros(num_classes, dtype=torch.float64)
+    target_count = torch.zeros(num_classes, dtype=torch.float64)
     with torch.no_grad():
         for batch in testloader:
             images = batch["img"].to(device, non_blocking=True)
             labels = batch["label"].to(device, non_blocking=True)
             outputs = net(images)
+            predictions = torch.argmax(outputs, dim=1)
             loss += criterion(outputs, labels).item()
-            correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+            correct += (predictions == labels).sum().item()
+
+            batch_targets = labels.detach().cpu()
+            batch_predictions = predictions.detach().cpu()
+            if num_classes > 0:
+                target_count += torch.bincount(
+                    batch_targets,
+                    minlength=num_classes,
+                ).to(dtype=torch.float64)
+                predicted_count += torch.bincount(
+                    batch_predictions,
+                    minlength=num_classes,
+                ).to(dtype=torch.float64)
+                true_positive += torch.bincount(
+                    batch_targets[batch_targets == batch_predictions],
+                    minlength=num_classes,
+                ).to(dtype=torch.float64)
     accuracy = correct / max(1, len(testloader.dataset))
     loss = loss / max(1, len(testloader))
-    return loss, accuracy
+    macro_f1, weighted_f1 = _classification_f1(
+        true_positive,
+        predicted_count,
+        target_count,
+    )
+    return loss, accuracy, macro_f1, weighted_f1
