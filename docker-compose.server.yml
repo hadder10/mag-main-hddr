@@ -1,75 +1,75 @@
 services:
-    superlink:
-      build:
-        context: .
-      image: for-fl:latest
-      command:
-        - flower-superlink
-        - --insecure
-        - --database
-        - state/state.db
-      ports:
-        - "9092:9092"
-        - "9093:9093"
-      volumes:
-        - /mnt/ZZZFORGAMES/mag-main/superlink-state:/app/state
-        - /mnt/ZZZFORGAMES/mag-main/artifacts:/app/artifacts
-        - /mnt/ZZZFORGAMES/mag-main/hf-cache:/root/.cache/huggingface
-        - ${GLD_HOST_DIR:-./data/gld}:/data/gld:ro
-      restart: unless-stopped
-      networks:
-        - default
+  superlink:
+    build:
+      context: .
+    image: for-fl:latest
+    command:
+      - flower-superlink
+      - --insecure
+      - --database
+      - state/state.db
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    volumes:
+      - /home/new-main-server/fl-storage/state:/app/state
+      - /home/new-main-server/fl-storage/artifacts:/app/artifacts
+      - /home/new-main-server/fl-storage/hf-cache:/root/.cache/huggingface
+      - ${GLD_HOST_DIR:-./data/gld}:/data/gld:ro
+    restart: unless-stopped
+    networks:
+      - default
 
-    submit-run:
-      image: for-fl:latest
-      profiles:
-        - run
-      depends_on:
-        - superlink
-      volumes:
-        - /mnt/ZZZFORGAMES/mag-main/artifacts:/app/artifacts
-        - /mnt/ZZZFORGAMES/mag-main/hf-cache:/root/.cache/huggingface
-        - ${GLD_HOST_DIR:-./data/gld}:/data/gld:ro
-      command:
-        - /bin/bash
-        - -lc
-        - >
-          flwr run . docker-deployment --stream
-          --run-config
-          "num-server-rounds=${NUM_SERVER_ROUNDS:-20}
-          fraction-train=${FRACTION_TRAIN:-0.2}
-          fraction-evaluate=${FRACTION_EVALUATE:-0.1}
-          min-train-nodes=${MIN_TRAIN_NODES:-5}
-          min-evaluate-nodes=${MIN_EVALUATE_NODES:-5}
-          min-available-nodes=${MIN_AVAILABLE_NODES:-10}
-          batch-size=${BATCH_SIZE:-8}
-          local-epochs=${LOCAL_EPOCHS:-1}
-          image-size=${IMAGE_SIZE:-96}
-          include-cifar100=${INCLUDE_CIFAR100:-true}
-          include-landmarks=${INCLUDE_LANDMARKS:-false}
-          landmark-num-classes=${LANDMARK_NUM_CLASSES:-10000}
-          gld-root=\"${GLD_ROOT:-/data/gld/train}\"
-          gld-train-csv=\"${GLD_TRAIN_CSV:-/data/gld/train.csv}\"
-          gld-verify-files=${GLD_VERIFY_FILES:-false}
-          val-ratio=${VAL_RATIO:-0.2}
-          learning-rate=${LEARNING_RATE:-0.01}
-          privacy-backend=\"${PRIVACY_BACKEND:-manual_gradient_protection}\"
-          grad-noise-std=${GRAD_NOISE_STD:-0.001}
-          grad-clip-norm=${GRAD_CLIP_NORM:-1.0}
-          significant-threshold=${SIGNIFICANT_THRESHOLD:-0.0001}
-          opacus-noise-multiplier=${OPACUS_NOISE_MULTIPLIER:-1.0}
-          opacus-accountant=\"${OPACUS_ACCOUNTANT:-prv}\"
-          opacus-delta=${OPACUS_DELTA:-0.00001}
-          opacus-secure-mode=${OPACUS_SECURE_MODE:-false}
-          opacus-poisson-sampling=${OPACUS_POISSON_SAMPLING:-true}
-          opacus-grad-sample-mode=\"${OPACUS_GRAD_SAMPLE_MODE:-hooks}\"
-          metrics-dir=\"${METRICS_DIR:-/app/artifacts/metrics}\"
-          updates-dir=\"${UPDATES_DIR:-/app/artifacts/updates}\"
-          model-dir=\"${MODEL_DIR:-/app/artifacts/models}\"
-          central-evaluate=${CENTRAL_EVALUATE:-false}
-          save-client-updates=${SAVE_CLIENT_UPDATES:-true}"
-      networks:
-        - default
+  submit-run:
+    image: for-fl:latest
+    profiles:
+      - run
+    depends_on:
+      - superlink
+    volumes:
+      - /home/new-main-server/fl-storage/artifacts:/app/artifacts
+      - /home/new-main-server/fl-storage/hf-cache:/root/.cache/huggingface
+      - ${GLD_HOST_DIR:-./data/gld}:/data/gld:ro
+    command:
+      - /bin/bash
+      - -lc
+      - >
+        flwr run . docker-deployment --stream
+        --run-config
+        "num-server-rounds=${NUM_SERVER_ROUNDS:-20}
+        fraction-train=${FRACTION_TRAIN:-0.2}
+        fraction-evaluate=${FRACTION_EVALUATE:-0.1}
+        min-train-nodes=${MIN_TRAIN_NODES:-5}
+        min-evaluate-nodes=${MIN_EVALUATE_NODES:-5}
+        min-available-nodes=${MIN_AVAILABLE_NODES:-10}
+        batch-size=${BATCH_SIZE:-8}
+        local-epochs=${LOCAL_EPOCHS:-1}
+        image-size=${IMAGE_SIZE:-96}
+        include-cifar100=${INCLUDE_CIFAR100:-true}
+        include-landmarks=${INCLUDE_LANDMARKS:-false}
+        landmark-num-classes=${LANDMARK_NUM_CLASSES:-10000}
+        gld-root=\"${GLD_ROOT:-/data/gld/train}\"
+        gld-train-csv=\"${GLD_TRAIN_CSV:-/data/gld/train.csv}\"
+        gld-verify-files=${GLD_VERIFY_FILES:-false}
+        val-ratio=${VAL_RATIO:-0.2}
+        learning-rate=${LEARNING_RATE:-0.01}
+        privacy-backend=\"${PRIVACY_BACKEND:-manual_gradient_protection}\"
+        grad-noise-std=${GRAD_NOISE_STD:-0.001}
+        grad-clip-norm=${GRAD_CLIP_NORM:-1.0}
+        significant-threshold=${SIGNIFICANT_THRESHOLD:-0.0001}
+        opacus-noise-multiplier=${OPACUS_NOISE_MULTIPLIER:-1.0}
+        opacus-accountant=\"${OPACUS_ACCOUNTANT:-prv}\"
+        opacus-delta=${OPACUS_DELTA:-0.00001}
+        opacus-secure-mode=${OPACUS_SECURE_MODE:-false}
+        opacus-poisson-sampling=${OPACUS_POISSON_SAMPLING:-true}
+        opacus-grad-sample-mode=\"${OPACUS_GRAD_SAMPLE_MODE:-hooks}\"
+        metrics-dir=\"${METRICS_DIR:-/app/artifacts/metrics}\"
+        updates-dir=\"${UPDATES_DIR:-/app/artifacts/updates}\"
+        model-dir=\"${MODEL_DIR:-/app/artifacts/models}\"
+        central-evaluate=${CENTRAL_EVALUATE:-false}
+        save-client-updates=${SAVE_CLIENT_UPDATES:-true}"
+    networks:
+      - default
 
 networks:
   default:
