@@ -1,6 +1,12 @@
 """Security operations used during federated training."""
 
-from .gradient_protection import GradientProtectionConfig, apply_gradient_protection
+from .gradient_protection import (
+    GradientProtectionConfig,
+    add_clipped_gradient_sum,
+    apply_gradient_protection,
+    build_clipped_gradient_sum,
+    set_noisy_average_gradients,
+)
 from .opacus_protection import OpacusProtectionConfig, enable_opacus_protection
 from .privacy_backend import (
     PRIVACY_BACKENDS,
@@ -17,7 +23,10 @@ __all__ = [
     "PRIVACY_MANUAL",
     "PRIVACY_NONE",
     "PRIVACY_OPACUS",
+    "add_clipped_gradient_sum",
     "apply_gradient_protection",
+    "build_clipped_gradient_sum",
     "enable_opacus_protection",
     "normalize_privacy_backend",
+    "set_noisy_average_gradients",
 ]

@@ -28,7 +28,70 @@
 контролируемый экспериментальный стенд: можно сравнивать качество, loss, F1 и
 устойчивость к gradient inversion при разных режимах защиты градиентов.
 
-## Установка локально
+## Подготовка пустой Ubuntu/Debian машины
+
+Ниже команды для полностью пустого сервера или клиента. Рекомендуемый вариант -
+ставить Docker Engine и Docker Compose plugin из официального Docker apt-репозитория.
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg git lsb-release
+
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+Проверка:
+
+```bash
+docker --version
+docker compose version
+sudo docker run --rm hello-world
+```
+
+Чтобы запускать Docker без `sudo`:
+
+```bash
+sudo usermod -aG docker "$USER"
+newgrp docker
+docker run --rm hello-world
+```
+
+Если apt-вариант Compose plugin недоступен, можно поставить standalone Compose
+через `curl`. Тогда команды будут через `docker-compose`, а не `docker compose`.
+
+```bash
+COMPOSE_VERSION=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest \
+  | sed -n 's/.*"tag_name": "\(.*\)".*/\1/p' \
+  | head -n 1)
+
+sudo curl -SL \
+  "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
+  -o /usr/local/bin/docker-compose
+
+sudo chmod +x /usr/local/bin/docker-compose
+docker-compose version
+```
+
+Если используется GPU, дополнительно должен быть установлен NVIDIA driver и
+NVIDIA Container Toolkit. Проверка:
+
+```bash
+nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
+```
+
+## Установка локально без Docker
 
 ```bash
 cd /home/hadder/Документы/Github/mag-main-hddr
@@ -105,7 +168,7 @@ flwr run . local-deployment --stream --run-config \
 
 ```text
 num-server-rounds=30
-batch-size=32
+batch-size=16 или 32
 local-epochs=1
 image-size=96
 learning-rate=0.01
@@ -115,6 +178,10 @@ min-available-nodes=20
 grad-clip-norm=1.0
 grad-noise-std=0.001
 ```
+
+Для `manual_gradient_protection` batch-size лучше держать умеренным: ручная
+схема считает backward по каждому примеру внутри batch. Это медленнее обычного
+обучения, но лучше демонстрирует архитектуру защиты градиентов.
 
 ## Рекомендуемый запуск GLDv2 для диплома
 
@@ -151,14 +218,33 @@ privacy-backend=opacus opacus-noise-multiplier=1.0 opacus-delta=0.00001
 Смысл сравнения:
 
 - `none`: обычное обучение без дополнительной защиты;
-- `manual_gradient_protection`: общий clipping нормы градиента и добавление
-  гауссова шума к градиентам перед `optimizer.step()`;
+- `manual_gradient_protection`: DP-SGD-подобная ручная схема. Для каждого
+  примера в batch отдельно считается градиент, вклад каждого примера
+  ограничивается через clipping, clipped gradients усредняются, после чего к
+  итоговому градиенту добавляется гауссов шум перед `optimizer.step()`;
 - `opacus`: DP-SGD через Opacus с per-sample gradients, clipping, noise и
   privacy accounting.
 
 ## Запуск на сервере через Docker Compose
 
-Собрать образ:
+На чистом сервере сначала установи Docker по разделу выше, затем клонируй проект:
+
+```bash
+git clone <URL_ТВОЕГО_РЕПОЗИТОРИЯ>
+cd mag-main-hddr
+```
+
+CIFAR-100 скачивать вручную не нужно. Для GLDv2 заранее положи датасет на сервер
+и на клиентские машины в одинаковую логическую структуру. Например:
+
+```bash
+mkdir -p /opt/datasets/gld
+export GLD_HOST_DIR=/opt/datasets/gld
+```
+
+Внутри `/opt/datasets/gld` должны быть `train.csv` и каталог `train/`.
+
+Собрать Docker-образ:
 
 ```bash
 docker build -t for-fl:latest .
@@ -167,7 +253,7 @@ docker build -t for-fl:latest .
 Запустить SuperLink на сервере:
 
 ```bash
-export GLD_HOST_DIR=/absolute/path/to/data/gld
+export GLD_HOST_DIR=/opt/datasets/gld
 docker compose -f docker-compose.server.yml up -d superlink
 ```
 
@@ -233,6 +319,21 @@ docker compose -f docker-compose.server.yml --profile run up submit-run
 
 ## Запуск клиентов
 
+На каждой клиентской машине сначала установи Docker по разделу выше, затем:
+
+```bash
+git clone <URL_ТВОЕГО_РЕПОЗИТОРИЯ>
+cd mag-main-hddr
+docker build -t for-fl:latest .
+```
+
+Если используется GLDv2, положи датасет в такой же путь, как на сервере:
+
+```bash
+mkdir -p /opt/datasets/gld
+export GLD_HOST_DIR=/opt/datasets/gld
+```
+
 На первой клиентской машине:
 
 ```bash
@@ -240,7 +341,7 @@ export SERVER_IP=<IP_СЕРВЕРА>
 export VM_INDEX=0
 export CLIENTS_PER_VM=10
 export TOTAL_CLIENTS=20
-export GLD_HOST_DIR=/absolute/path/to/data/gld
+export GLD_HOST_DIR=/opt/datasets/gld
 docker compose -f docker-compose.clients.yml up -d
 ```
 
@@ -251,7 +352,7 @@ export SERVER_IP=<IP_СЕРВЕРА>
 export VM_INDEX=1
 export CLIENTS_PER_VM=10
 export TOTAL_CLIENTS=20
-export GLD_HOST_DIR=/absolute/path/to/data/gld
+export GLD_HOST_DIR=/opt/datasets/gld
 docker compose -f docker-compose.clients.yml up -d
 ```
 

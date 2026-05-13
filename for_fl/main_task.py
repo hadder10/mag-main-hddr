@@ -18,17 +18,21 @@ try:
     from .sec_ops import (
         GradientProtectionConfig,
         OpacusProtectionConfig,
-        apply_gradient_protection,
+        add_clipped_gradient_sum,
+        build_clipped_gradient_sum,
         enable_opacus_protection,
         normalize_privacy_backend,
+        set_noisy_average_gradients,
     )
 except ImportError:
     from sec_ops import (
         GradientProtectionConfig,
         OpacusProtectionConfig,
-        apply_gradient_protection,
+        add_clipped_gradient_sum,
+        build_clipped_gradient_sum,
         enable_opacus_protection,
         normalize_privacy_backend,
+        set_noisy_average_gradients,
     )
 
 
@@ -455,13 +459,20 @@ def train(
             for batch in trainloader:
                 images = batch["img"].to(device, non_blocking=True)
                 labels = batch["label"].to(device, non_blocking=True)
+                if privacy_backend == "manual_gradient_protection":
+                    running_loss += _train_manual_private_batch(
+                        net,
+                        images,
+                        labels,
+                        criterion,
+                        optimizer,
+                        gradient_protection,
+                    )
+                    continue
+
                 optimizer.zero_grad(set_to_none=True)
                 loss = criterion(net(images), labels)
                 loss.backward()
-
-                if privacy_backend == "manual_gradient_protection":
-                    apply_gradient_protection(net, gradient_protection)
-
                 optimizer.step()
                 running_loss += loss.item()
     finally:
@@ -471,6 +482,39 @@ def train(
                 print(f"Opacus privacy spent: epsilon={epsilon:.4f}, delta={opacus_delta}")
             opacus_state.cleanup()
     return running_loss / max(1, epochs * len(trainloader))
+
+
+def _train_manual_private_batch(
+    net: nn.Module,
+    images: torch.Tensor,
+    labels: torch.Tensor,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    gradient_protection: GradientProtectionConfig,
+) -> float:
+    parameters = list(net.parameters())
+    accumulator: list[torch.Tensor | None] = [None for _ in parameters]
+    batch_loss = 0.0
+
+    for sample_index in range(images.shape[0]):
+        optimizer.zero_grad(set_to_none=True)
+        sample_images = images[sample_index : sample_index + 1]
+        sample_labels = labels[sample_index : sample_index + 1]
+        sample_loss = criterion(net(sample_images), sample_labels)
+        sample_loss.backward()
+        clipped_grads, _ = build_clipped_gradient_sum(net, gradient_protection)
+        add_clipped_gradient_sum(accumulator, clipped_grads)
+        batch_loss += float(sample_loss.detach().item())
+
+    optimizer.zero_grad(set_to_none=True)
+    set_noisy_average_gradients(
+        net,
+        accumulator,
+        sample_count=int(images.shape[0]),
+        config=gradient_protection,
+    )
+    optimizer.step()
+    return batch_loss / max(1, int(images.shape[0]))
 
 
 def _classification_f1(
