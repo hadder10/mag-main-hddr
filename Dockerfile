@@ -17,6 +17,8 @@ COPY pyproject.toml ./
 COPY for_fl ./for_fl
 
 RUN python -m pip install --upgrade pip \
+    && python -m pip install --index-url https://download.pytorch.org/whl/cpu \
+        torch torchvision \
     && python -m pip install -e .
 
 CMD ["python", "-c", "import for_fl.server, for_fl.client; print('Flower app image is ready')"]
