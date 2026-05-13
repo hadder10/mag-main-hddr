@@ -64,6 +64,7 @@ services:
         metrics-dir=\"${METRICS_DIR:-/app/artifacts/metrics}\"
         updates-dir=\"${UPDATES_DIR:-/app/artifacts/updates}\"
         model-dir=\"${MODEL_DIR:-/app/artifacts/models}\"
+        central-evaluate=${CENTRAL_EVALUATE:-false}
         save-client-updates=${SAVE_CLIENT_UPDATES:-true}"
 
 volumes:

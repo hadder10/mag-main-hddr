@@ -31,6 +31,7 @@ def main(grid: Grid, context: Context) -> None:
     num_rounds: int = context.run_config["num-server-rounds"]
     lr: float = context.run_config["learning-rate"]
     settings = settings_from_config(context.run_config)
+    central_evaluate = _bool_config(context.run_config, "central-evaluate", False)
 
     global_model = Net(num_classes=settings.num_classes)
     arrays = ArrayRecord(global_model.state_dict())
@@ -45,6 +46,13 @@ def main(grid: Grid, context: Context) -> None:
         updates_dir=context.run_config.get("updates-dir", "artifacts/updates"),
         run_config=context.run_config,
     )
+    evaluate_fn = None
+    if central_evaluate:
+        evaluate_fn = lambda server_round, arrays: global_evaluate(
+            server_round,
+            arrays,
+            settings,
+        )
 
     result = strategy.start(
         grid=grid,
@@ -79,9 +87,7 @@ def main(grid: Grid, context: Context) -> None:
             }
         ),
         num_rounds=num_rounds,
-        evaluate_fn=lambda server_round, arrays: global_evaluate(
-            server_round, arrays, settings
-        ),
+        evaluate_fn=evaluate_fn,
     )
 
     print("\nSaving final model to disk...")
