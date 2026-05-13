@@ -24,6 +24,9 @@ include = ["for_fl*"]
 serverapp = "for_fl.server:app"
 clientapp = "for_fl.client:app"
 
+[tool.flwr.app]
+publisher = "hddr"
+
 [tool.flwr.app.config]
 num-server-rounds = 3
 fraction-train = 0.2
