@@ -13,6 +13,7 @@ from .privacy_backend import (
     PRIVACY_MANUAL,
     PRIVACY_NONE,
     PRIVACY_OPACUS,
+    PRIVACY_SIGNIFICANT,
     normalize_privacy_backend,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "PRIVACY_MANUAL",
     "PRIVACY_NONE",
     "PRIVACY_OPACUS",
+    "PRIVACY_SIGNIFICANT",
     "add_clipped_gradient_sum",
     "apply_gradient_protection",
     "build_clipped_gradient_sum",

@@ -84,6 +84,9 @@ def main(grid: Grid, context: Context) -> None:
                     "opacus-grad-sample-mode",
                     "hooks",
                 ),
+                "significant-threshold": float(
+                    context.run_config.get("significant-threshold", 0.0)
+                ),
             }
         ),
         num_rounds=num_rounds,

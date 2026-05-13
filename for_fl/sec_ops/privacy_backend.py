@@ -4,8 +4,14 @@ from __future__ import annotations
 PRIVACY_NONE = "none"
 PRIVACY_MANUAL = "manual_gradient_protection"
 PRIVACY_OPACUS = "opacus"
+PRIVACY_SIGNIFICANT = "significant_gradient_filter"
 
-PRIVACY_BACKENDS = (PRIVACY_NONE, PRIVACY_MANUAL, PRIVACY_OPACUS)
+PRIVACY_BACKENDS = (
+    PRIVACY_NONE,
+    PRIVACY_MANUAL,
+    PRIVACY_OPACUS,
+    PRIVACY_SIGNIFICANT,
+)
 
 _ALIASES = {
     "": PRIVACY_MANUAL,
@@ -18,6 +24,10 @@ _ALIASES = {
     "gradient_protection": PRIVACY_MANUAL,
     "manual_gradient_protection": PRIVACY_MANUAL,
     "opacus": PRIVACY_OPACUS,
+    "significant": PRIVACY_SIGNIFICANT,
+    "significant_gradients": PRIVACY_SIGNIFICANT,
+    "significant_gradient_filter": PRIVACY_SIGNIFICANT,
+    "significant_gradient_filtering": PRIVACY_SIGNIFICANT,
 }
 
 

@@ -47,6 +47,7 @@ gld-val-csv = ""
 gld-label-map-csv = ""
 grad-noise-std = 0.001
 grad-clip-norm = 1.0
+significant-threshold = 0.0001
 privacy-backend = "manual_gradient_protection"
 opacus-noise-multiplier = 1.0
 opacus-accountant = "prv"
