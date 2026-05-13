@@ -108,8 +108,6 @@ def main(grid: Grid, context: Context) -> None:
 def global_evaluate(
     server_round: int, arrays: ArrayRecord, settings=None
 ) -> MetricRecord:
-    """Evaluate the global model on central validation data."""
-
     model_state = arrays.to_torch_state_dict()
     classifier_weight = model_state["classifier.weight"]
     model = Net(num_classes=classifier_weight.shape[0])

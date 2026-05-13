@@ -63,6 +63,7 @@ def build_clipped_gradient_sum(
     return clipped_grads, float(total_norm_tensor.item())
 
 
+
 def add_clipped_gradient_sum(
     accumulator: list[torch.Tensor | None],
     clipped_grads: list[torch.Tensor | None],

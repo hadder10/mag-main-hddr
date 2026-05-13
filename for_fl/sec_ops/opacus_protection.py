@@ -1,5 +1,3 @@
-"""Opacus-backed differential privacy for federated learning clients."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -52,8 +50,6 @@ def enable_opacus_protection(
         from opacus.validators import ModuleValidator
     except ImportError as exc:
         raise ImportError(
-            "Opacus backend was requested, but 'opacus' is not installed. "
-            "Install it with `pip install opacus` or use privacy-backend=manual."
         ) from exc
 
     if not ModuleValidator.is_valid(model):

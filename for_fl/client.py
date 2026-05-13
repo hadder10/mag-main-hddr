@@ -58,8 +58,6 @@ def _privacy_config(train_config, context: Context) -> str:
 
 @app.train()
 def train(msg: Message, context: Context):
-    """Train the model on one local CIFAR-100 + GLDv2 shard."""
-
     settings = settings_from_config(context.run_config)
     model = Net(num_classes=settings.num_classes)
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
@@ -109,8 +107,6 @@ def train(msg: Message, context: Context):
 
 @app.evaluate()
 def evaluate(msg: Message, context: Context):
-    """Evaluate the model on one local validation shard."""
-
     settings = settings_from_config(context.run_config)
     model = Net(num_classes=settings.num_classes)
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())

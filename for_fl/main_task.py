@@ -102,7 +102,7 @@ class Net(nn.Module):
         self.features = nn.Sequential(
             nn.Conv2d(3, width, kernel_size=3, stride=2, padding=1, bias=False),
             nn.GroupNorm(num_groups=min(8, width), num_channels=width),
-            nn.SiLU(inplace=True),
+            nn.SiLU(),
             DepthwiseSeparableConv(width, width * 2, stride=2),
             ResidualBlock(width * 2),
             DepthwiseSeparableConv(width * 2, width * 4, stride=2),
@@ -116,7 +116,7 @@ class Net(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(width * 8, embedding_dim),
             nn.LayerNorm(embedding_dim),
-            nn.SiLU(inplace=True),
+            nn.SiLU(),
         )
         self.classifier = nn.Linear(embedding_dim, num_classes)
 

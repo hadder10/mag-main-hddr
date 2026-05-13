@@ -1,5 +1,3 @@
-"""Privacy backend names and helpers."""
-
 from __future__ import annotations
 
 
@@ -24,8 +22,6 @@ _ALIASES = {
 
 
 def normalize_privacy_backend(value: str | None) -> str:
-    """Normalize CLI/config values into one supported backend name."""
-
     key = (value or "").lower().strip().replace("-", "_")
     if key not in _ALIASES:
         allowed = ", ".join(PRIVACY_BACKENDS)
