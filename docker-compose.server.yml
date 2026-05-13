@@ -47,23 +47,23 @@ services:
         include-cifar100=${INCLUDE_CIFAR100:-true}
         include-landmarks=${INCLUDE_LANDMARKS:-false}
         landmark-num-classes=${LANDMARK_NUM_CLASSES:-10000}
-        gld-root=${GLD_ROOT:-/data/gld/train}
-        gld-train-csv=${GLD_TRAIN_CSV:-/data/gld/train.csv}
+        gld-root=\"${GLD_ROOT:-/data/gld/train}\"
+        gld-train-csv=\"${GLD_TRAIN_CSV:-/data/gld/train.csv}\"
         gld-verify-files=${GLD_VERIFY_FILES:-false}
         val-ratio=${VAL_RATIO:-0.2}
         learning-rate=${LEARNING_RATE:-0.01}
-        privacy-backend=${PRIVACY_BACKEND:-manual_gradient_protection}
+        privacy-backend=\"${PRIVACY_BACKEND:-manual_gradient_protection}\"
         grad-noise-std=${GRAD_NOISE_STD:-0.001}
         grad-clip-norm=${GRAD_CLIP_NORM:-1.0}
         opacus-noise-multiplier=${OPACUS_NOISE_MULTIPLIER:-1.0}
-        opacus-accountant=${OPACUS_ACCOUNTANT:-prv}
+        opacus-accountant=\"${OPACUS_ACCOUNTANT:-prv}\"
         opacus-delta=${OPACUS_DELTA:-0.00001}
         opacus-secure-mode=${OPACUS_SECURE_MODE:-false}
         opacus-poisson-sampling=${OPACUS_POISSON_SAMPLING:-true}
-        opacus-grad-sample-mode=${OPACUS_GRAD_SAMPLE_MODE:-hooks}
-        metrics-dir=${METRICS_DIR:-/app/artifacts/metrics}
-        updates-dir=${UPDATES_DIR:-/app/artifacts/updates}
-        model-dir=${MODEL_DIR:-/app/artifacts/models}
+        opacus-grad-sample-mode=\"${OPACUS_GRAD_SAMPLE_MODE:-hooks}\"
+        metrics-dir=\"${METRICS_DIR:-/app/artifacts/metrics}\"
+        updates-dir=\"${UPDATES_DIR:-/app/artifacts/updates}\"
+        model-dir=\"${MODEL_DIR:-/app/artifacts/models}\"
         save-client-updates=${SAVE_CLIENT_UPDATES:-true}"
 
 volumes:
